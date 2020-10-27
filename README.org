@@ -1,0 +1,188 @@
+** Hello World
+#+BEGIN_SRC nim
+  proc my_proc(name: string): string =
+    return "Hello " & name
+  
+  echo my_proc("World!")
+#+END_SRC
+
+#+RESULTS:
+: Hello World!
+
+** const vs let
+#+BEGIN_SRC nim
+  let x = 42
+  # x = 100 # cannot re-assign "let"
+  const c = "i can't be changed and must be known at compile time"
+  echo x, c
+#+END_SRC
+
+#+RESULTS:
+: 42i can't be changed and must be known at compile time
+
+** if/else and when
+#+BEGIN_SRC nim
+  let x = 50
+  if x < 25:
+    echo "small"
+  elif x > 25 and x < 75:
+    echo "medium"
+  else:
+    echo "large"
+#+END_SRC
+
+#+RESULTS:
+: medium
+
+** case
+#+BEGIN_SRC nim
+  from strutils import parseInt
+  let n = 1
+  case n
+     of 0..5, 9, 10: echo "A"
+     of 6..8: echo "B"
+     else: echo "nope"
+#+END_SRC
+
+#+RESULTS:
+: A
+
+** loops
+#+BEGIN_SRC nim
+  echo "count up"
+  for i in countup(1, 5):
+    echo i
+
+  echo "count up .."
+  for i in 1..5:
+    echo i
+
+  echo "count up with while"
+  var i = 1
+  while i <= 5:
+    echo i
+    inc(i)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+count up
+1
+2
+3
+4
+5
+count up ..
+1
+2
+3
+4
+5
+count up with while
+1
+2
+3
+4
+5
+#+end_example
+
+#+BEGIN_SRC nim
+  for i, x in ["a", "b", "c"].pairs:
+    echo x, " at index ", i
+#+END_SRC
+
+#+RESULTS:
+: a at index 0
+: b at index 1
+: c at index 2
+
+** scope and ~break~
+
+   Scope is block-based; below will error, as ~x~ is accessed after the scope ends:
+   #+BEGIN_SRC nim
+     while false:
+       var x = 42
+     echo x
+   #+END_SRC
+
+   #+RESULTS:
+
+   Named and anonymous block scopes:
+   #+BEGIN_SRC nim
+     block scope_1:
+       var x = 1
+       echo x
+     block scope_2:
+       var x = 2
+       echo x
+     block: # anonymous block
+       var x = 3
+       echo x
+   #+END_SRC
+
+   #+RESULTS:
+   : 1
+   : 2
+   : 3
+
+   ~break~ can exit loops - as one would expect:
+   #+BEGIN_SRC nim 
+     for i in 1..10:
+       if i > 5: break
+       echo i
+   #+END_SRC
+
+   #+RESULTS:
+   : 1
+   : 2
+   : 3
+   : 4
+   : 5
+   
+   But ~break~ can also exit scope blocks:
+   #+BEGIN_SRC nim
+     block:
+       echo "before"
+       break
+       echo "after"
+   #+END_SRC
+
+   #+RESULTS:
+   : before
+
+   When nested inside multiple "exitable" constructs (loops/blocks), the innermost one will be exited:
+   #+BEGIN_SRC nim
+     block:
+       echo "foo"
+       for i in 1..10:
+         if i > 3: break
+         echo i
+       echo "bar"
+   #+END_SRC
+
+   #+RESULTS:
+   : foo
+   : 1
+   : 2
+   : 3
+   : bar
+   
+   When ~break~ gets a block name, the block will be exited regardless of nesting:
+   #+BEGIN_SRC nim
+     block scope_1:
+       echo "foo"
+       for i in 1..10:
+         if i > 3: break scope_1
+         echo i
+       echo "bar"
+   #+END_SRC
+
+   #+RESULTS:
+   : foo
+   : 1
+   : 2
+   : 3
+   
+   #+BEGIN_SRC nim
+   #+END_SRC
+   
