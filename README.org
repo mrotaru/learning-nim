@@ -230,7 +230,6 @@
    #+BEGIN_SRC nim
    #+END_SRC
    
-   
 ** result, varargs
    - functions have an implicit ~result~ variable declared, which is used as return value:
    #+BEGIN_SRC nim
@@ -246,7 +245,7 @@
    : 0
    : 6
    
-** parameters
+** parameters, defaults, overloading
    - params immutable by default
    #+BEGIN_SRC nim
      proc foo(x: int): void =
@@ -302,6 +301,238 @@
    #+END_SRC
 
    #+RESULTS:
+   
+   - params can be specified by name; helpful when fn has many params
+   - params can also have default values
+   #+BEGIN_SRC nim
+     proc foo(a: int; b, c: string, d = "bar"): void =
+       echo a,b,c,d
+
+    foo(b="bbb", c="ccc", a=42)
+   #+END_SRC
+
+   #+RESULTS:
+   : 42bbbcccbar
+   
+   - overloading - two procs can have same name, but params must differ in types
+   #+BEGIN_SRC nim
+     proc foo(a: int): void =
+       echo "foo for int ", a
+     proc foo(a: string): void =
+       echo "foo for string ", a
+     foo(100)
+     foo("str")
+   #+END_SRC
+
+   #+RESULTS:
+   : foo for int 100
+   : foo for string str
+
+** forward declarations
+   - stuff needs to be declared before use
+   - to work around this in mutually recursive procs, use forward declarations:
+   #+BEGIN_SRC nim
+     proc f2(): void # forward declaration - no body '='
+
+     proc f1(): void =
+       f2()
+     proc f2(): void =
+       f1()
+   #+END_SRC
+
+   #+RESULTS:
+
+** iterator, generator, yield
+   - use ~iterator~ keyword instead of ~proc~,  and use ~yield~ to reutrn and continue
+   - (unlike js generators, there doesn't seem to be pass values back when resumes)
+   - can't recurse
+   - can only be invoked from loops
+   - can't ~return~ - only ~yield~
+   - cannot be forward declared (yet)
+   #+BEGIN_SRC nim
+      iterator my_iter(start, finish: int): int =
+        var i = start
+        while i <= finish:
+          yield i
+          inc(i)
+
+     for i in my_iter(1,5):
+       echo i
+   #+END_SRC
+
+   #+RESULTS:
+   : 1
+   : 2
+   : 3
+   : 4
+   : 5
+   
+** bools, coercion
+   - there is no coercion; code below does not compile:
+   #+BEGIN_SRC nim
+     let n = 0
+     if not n:
+       echo "false"
+   #+END_SRC
+
+   #+RESULTS:
+
+** chars, strings
+   - a ~char~ is always 1 byte; can be compared amongst themselves
+   - trying to store multi-byte Unicode in a ~char~ ⇒ compilation error
+   - the ~$~ operator (similar to ~toString()~ in js) converts a ~char~ to ~string~
+   - cannot be mixed with integers
+   - single quotes for chars, double for strings
+   #+BEGIN_SRC nim
+     let a = 'x' # char
+     let b = "x" # string
+     let c = "Ⅶ" # string
+     # let d = 'Ⅶ' # Error: missing closing ' for character literal
+     echo repr(a)
+     echo repr(b)
+     echo c
+   #+END_SRC
+
+   #+RESULTS:
+   : 'x'
+   : 000000000068F060"x"
+   : Ⅶ
+
+** numbers - ints, floats
+   - multiple types of integers built-in
+   - ~int~ has same size as pointer - so 64 bits on 64-bit systems (?:)
+   - signed integers are used when "signedness" is not specified (e.g., for ~int~, ~int32~, etc)
+   - lossy conversions result in exception (~EOutOfRange~)
+   #+BEGIN_SRC nim
+     let
+        x = 0
+        y = 0'i8 # eight-bit int
+        z = 0'i16 # 16-bit int
+     var a = 0'i8
+     var b = 0'ui8
+     a = 127 # ok
+     # a = 128 # Error: type mismatch: got <int literal(128)> but expected 'int8'
+     b = 128 # ok
+     echo a, ' ', b
+   #+END_SRC
+
+   #+RESULTS:
+
+   - floats:
+   #+BEGIN_SRC nim
+     var
+       x = 0.0
+       y = 0.0'f32
+       z = 0.0'f64
+   #+END_SRC
+   
+   - conversions:
+   #+BEGIN_SRC nim
+     x = y
+     echo x, ' ',  y
+     let a = 1
+     # let b = x + a # Error: type mismatch: got <float64, int>
+     let c = x + 1 # fine - types are different (float and int) - result will be float
+     echo b
+   #+END_SRC
+
+   #+RESULTS:
+   : 0.0 0.0
+   : 1.0
+
+** enums
+   #+BEGIN_SRC nim
+      type
+        Direction = enum
+          north, east, south, west
+     var dir = south
+     echo dir
+     dir = west
+     echo dir
+   #+END_SRC
+
+   #+RESULTS:
+   : south
+   : west
+   
+** ordinals
+   - many types in nim are "ordinal" - they support ordering, and associated operations
+   - enums, ints, char, bool - ordinals
+   #+BEGIN_SRC nim
+      type
+        Direction = enum
+          north, east, south, west
+     var x = east
+     echo ord(x)
+     # echo inc(x) # does not compile  - type mismatch
+     echo succ(x)
+     echo pred(x)
+   #+END_SRC
+
+   #+RESULTS:
+   : 1
+   : south
+   : north
+
+** subranges
+   #+BEGIN_SRC nim
+     type sr1 = range[0..5]
+     # type sr2 = range[0..5, 10-12, 20] # does not compile, which kinda makes sense - a range has start and finish, is not a set
+     echo sr1 # prints "sr1", not the actual range
+     # echo repr(sr1) # fails - such ranges are not representable by default
+     # - such ranges are not representable by default+END_SRC
+
+     # the built-in Natural is defined as such:
+     type MyNatural = range[0..high(int)]
+     var x, y: MyNatural
+     x = 1
+     # y = -1 # does not compile - Error: conversion from int literal(-1) to MyNatural is invalid
+     echo x, ' ',  y
+   #+END_SRC
+
+   #+RESULTS:
+   
+** sets
+   - implemented as bit vectors; max nr of elements - 2^16
+   - base type must be one of int8, int16, uint8/byte - uint16, char, enum
+   - constructed with ~{}~
+   - operators are overloaded to support union, intersection, difference, equality, subset, strict subset
+   - keywords provide additional functionality: membership (~in~, ~notin~)
+   - functions: ~contains()~, ~card(A)~ (cardinality), ~incl(A, e)~, ~excl(A, e)~
+   #+BEGIN_SRC nim
+     var x = {'a'..'z'} # implicitly a set of chars
+     # type CharSet = set[char] # not needed
+     echo x
+
+     type Direction = enum north, east, south, west
+     var A: set[Direction]
+     var s = south
+     A = {north, south}
+     echo "A ", A
+
+     var B = {north, east, west} # no need for explicit declaration of set type
+     echo "B ", B
+
+     echo "union ", A + B
+     echo "difference ", A - B
+     echo "intersection ", A * B
+     echo s in A, ' ', s in B
+     incl(A, east) # add east to A
+     echo "A ", A
+     excl(A, north) # remove north from A
+     echo "A ", A
+   #+END_SRC
+
+   #+RESULTS:
+   : {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'}
+   : A {north, south}
+   : B {north, east, west}
+   : union {north, east, south, west}
+   : difference {south}
+   : intersection {north}
+   : true false
+   : A {north, east, south}
+   : A {east, south}
    
    #+BEGIN_SRC nim
    #+END_SRC
