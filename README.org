@@ -534,5 +534,329 @@
    : A {north, east, south}
    : A {east, south}
    
+** bit fields - aka flags
+   #+BEGIN_SRC nim
+     type Permission* {.size: sizeof(cint).} = enum
+       Read
+       Write
+       Execute
+     type Permissions = set[Permission]
+     proc to_int(perm: Permissions): int = cast[cint](perm)
+     proc to_permissions(number: int): Permissions = cast[Permissions](number)
+
+     echo to_int({}) # empty set
+     echo to_int({Read})
+     echo to_int({Write})
+     echo to_int({Read,Write})
+     echo to_int({Read,Write,Execute})
+     echo to_permissions(0)
+     echo to_permissions(3)
+     echo to_permissions(5)
+     echo to_permissions(9) # this also "works"
+   #+END_SRC
+
+   #+RESULTS:
+   : 0
+   : 1
+   : 2
+   : 3
+   : 7
+   : {}
+   : {Read, Write}
+   : {Read, Execute}
+   : {Read}
+
+   #+BEGIN_SRC nim
+   #+END_SRC
+
+** arrays
+   - must have same type
+   - bound-checked at compile time (can be disabled w pragma)
+   - assignments copy arrays
+   #+BEGIN_SRC nim
+     type IntArray = array[0..5, int] # array with 6 int elements
+     var arr: IntArray
+     arr = [1, 2, 3, 4, 5, 6]
+     # arr = [1, 2, 3, 4, 5, 6, 7] # Error: type mismatch: got <array[0..6, int]> but expected 'IntArray = array[0..5, int]'
+     for i in low(arr) .. high(arr):
+       echo arr[i]
+   #+END_SRC
+
+   #+RESULTS:
+   : 1
+   : 2
+   : 3
+   : 4
+   : 5
+   : 6
+
+   #+BEGIN_SRC nim
+     type Direction = enum north, east, south, west
+     type Wind = enum none, light, strong
+     type DirectionWind = array[north..west, Wind]
+     var todays_winds: DirectionWind
+     todays_winds[north] = strong
+     todays_winds[east] = none
+     todays_winds[south] = light
+     echo todays_winds, repr(todays_winds)
+     echo low(todays_winds) # "smallest" index - whichever comes first in order of Direction enum - north
+     echo len(todays_winds) # 4 (not 3!)
+     echo high(todays_winds) # "largest" possible index - west (not "actual" largest index - south)
+   #+END_SRC
+
+   #+RESULTS:
+   : [strong, none, light, none][strong, none, light, none]
+   : 
+   : north
+   : 4
+   : west
+   
+   #+BEGIN_SRC nim
+     # bad example...
+     type Soldier = enum alive, wounded, dead
+     type Line = array[1..5, Soldier]             
+     type Regiment = array[1..3, Line]
+     var regiment: Regiment
+     regiment = [
+         [alive, alive, alive, wounded, dead],
+         [alive, wounded, alive, wounded, dead],
+         [alive, wounded, alive, wounded, dead]]
+     echo regiment
+     # echo regiment[0] # Error: index 0 not in 1 .. 3
+     echo regiment[1] # first line
+     echo regiment[1][1] # first soldier in first line
+     regiment[1][1] = wounded
+     echo regiment[1][1]
+   #+END_SRC
+   
+   #+RESULTS:
+   : [[alive, alive, alive, wounded, dead], [alive, wounded, alive, wounded, dead], [alive, wounded, alive, wounded, dead]]
+   : [alive, alive, alive, wounded, dead]
+   : alive
+   : wounded
+
+   #+BEGIN_SRC nim
+     type Matrix3 = array[0..2, array[0..2, int]] # 3x3 matrix of integers
+     type Matrix4 = array[3, array[3, int]] # 4x4 matrix of integers, with index starting at 0
+     var matrix: Matrix3
+     matrix = [[0,1,2],[3,4,5],[6,7,8]]
+     echo matrix
+     echo matrix[1]
+     echo matrix[1][2]
+   #+END_SRC
+
+   #+RESULTS:
+   : [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+   : [3, 4, 5]
+   : 5
+
+** sequences
+   - resizable, so always allocated on the heap & garbage collected
+   - indexed similar arrays, from 0; have low, len, high
+   #+BEGIN_SRC nim
+      var x: seq[int]
+      var y = @[1, 2, 3]
+      echo x
+      echo y
+      for val in y: # iterate over values
+        echo val
+      for i,val in y: # iterate over indices and values
+        echo i, '=', val
+   #+END_SRC
+
+   #+RESULTS:
+   : @[]
+   : @[1, 2, 3]
+   : 1
+   : 2
+   : 3
+   : 0=1
+   : 1=2
+   : 2=3
+   
+** open arrays
+   - only for params; cannot be nested
+   - number of items can vary
+   - compatible sequences and arrays can be passed; index type does not matter - only the underlying values need to be compatible
+   #+BEGIN_SRC nim
+     var a = [1, 2, 3] # array of ints
+     var b = ["foo", "bar"] # array of strings
+     var c = @["boz"] # sequence of strings
+     proc f(oa: openArray[string]): int =
+       oa.len
+     # echo f(a) # Error: type mismatch: got <array[0..2, int]>
+     echo f(b)
+     echo f(c)
+   #+END_SRC
+
+   #+RESULTS:
+   : 2
+   : 1
+
+** varargs
+   - similar to an open array, but also similar to js "rest" param (...)
+   #+BEGIN_SRC nim
+     proc f(first: string, rest: varargs[int]) =
+       for arg in rest:
+         echo first, " ", arg
+
+    f("foo", 1, 2, 3)
+   #+END_SRC
+
+   #+RESULTS:
+   : foo 1
+   : foo 2
+   : foo 3
+
+   - can apply conversions:
+   #+BEGIN_SRC nim
+     # proc f(first: string, rest: varargs[int, `$`]) = # does not compile - prob bc `$` does not result in an int
+     proc f(first: string, rest: varargs[string, `$`]) =
+       for arg in rest:
+         echo first, " ", arg
+
+    f("foo", 1, "two", [3])
+   #+END_SRC
+
+   #+RESULTS:
+   : foo 1
+   : foo two
+   : foo [3]
+   
+** slices
+   - some collection types have operators which take ranges
+   - can be used both to read, and write
+   #+BEGIN_SRC nim
+     var a = "1234567890"
+     # echo a[0..]
+     echo a[0..1] # 12
+     echo a[0..^1] # 1234567890
+     echo a[0..^2] # 123456789
+     echo a[0..^3] # 12345678
+     a[5..9] = "abcde" # change the last 5 items
+     a[5..9] = "abcdefgh" # also works - can insert more than slice len
+     echo a
+   #+END_SRC
+
+   #+RESULTS:
+   : 12
+   : 1234567890
+   : 123456789
+   : 12345678
+   : 12345abcdefgh
+
+** objects
+   - also value types - copied on assignment
+   #+BEGIN_SRC nim
+     type Point = object
+       x: int
+       y: int
+     var p1 = Point(x: 100, y: 200)
+     echo p1
+     echo p1.x 
+     var p2 = p1 # copy
+     p2.x = 1000
+     echo p1, p2
+     var p3 = Point(y: 100, x: 200) # order can vary
+     var p4 = Point(y: 100) # unspecified members get default value for their respective type - 0 for numeric, "" for strings, etc
+     echo p3, p4
+   #+END_SRC
+
+   #+RESULTS:
+   : (x: 100, y: 200)
+   : 100
+   : (x: 100, y: 200)(x: 1000, y: 200)
+   : (x: 200, y: 100)(x: 0, y: 100)
+
+** tuples
+   - similar to objects, but indexed
+   - fields always public
+   - tuples are structurally typed - fields of same type and same order ⇒ types are equivalent
+   - order in constructor must match order of declaration
+   - like objects, can use dot notation to access properties - but can also access props by index
+   - below won't compile, bc types can't be re-declared - but all three tuple types are equivalent
+   #+BEGIN_SRC nim
+     type Point = tuple
+       x: int
+       y: int
+     type Point = tuple[x: int, y: int]
+     type Point = (int, int)
+   #+END_SRC
+   
+   - can be anon
+   #+BEGIN_SRC nim
+     var x: tuple[name: string, age: int] 
+     var y: tuple[id: string, distance: int]
+     x = ("Joe", 10)
+     y = ("jim", 20)
+     echo x, y
+     # y = x # Error
+     var z = ("foo", 42)
+     x = z
+     echo x
+   #+END_SRC
+     
+   #+RESULTS:
+   : (name: "Joe", age: 10)(id: "jim", distance: 20)
+   : (name: "foo", age: 42)
+
+   - can be unpacked (similar to js destructuring) during assignment
+   #+BEGIN_SRC nim
+     type Point = tuple[x: int, y: int]
+     proc get_origin(): Point =
+       result = (x: 0, y: 0)
+     let (ox, oy) = get_origin()
+     echo "x: ", ox, " y: ", oy
+   #+END_SRC
+
+   #+RESULTS:
+   : x: 0 y: 0
+
+
+** references and pointers
+   - traced vs untraced (pointers)
+   - traced: point to objects in garbage-collected heap; decl wtih ~ref~
+   - untraced: manually allocated (unsafe); decl with ~ptr~
+   - can be ~nil~
+   #+BEGIN_SRC nim
+     type Node = ref object
+       left, right: Node
+       payload: int
+     var a = new(Node)
+     echo n.payload
+   #+END_SRC
+
+   #+RESULTS:
+   : 0
+
+** procedural type - function pointers, functional programming
+   #+BEGIN_SRC nim
+     import sequtils
+
+     proc double(x: int): int =
+       return x * 2
+
+     proc triple(x: int): int =
+       return x * 3
+
+     proc do_something(what: proc (x: int): int, x: int): int =
+       return what(x)
+
+     var res1 = do_something(double, 5)
+     var res2 = do_something(triple, 5)
+     echo res1, ' ', res2
+     echo @[1, 2, 3].map(double)
+   #+END_SRC
+
+   #+RESULTS:
+   : 10 15
+   : @[2, 4, 6]
+   
+** modules
+   - each module is in its own file (no folders?)
+   - top-leve symbols marked with ~*~ are exported
+   - top-level statements executed at the start (also when imported ?)
+   - ~isMainModule~ can be used with ~when~ to run smth when file is executed
+   - ~import~, ~from x import y~, ~import x except y~, ~from x as y import z~
    #+BEGIN_SRC nim
    #+END_SRC
