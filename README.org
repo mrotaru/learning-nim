@@ -782,6 +782,8 @@
      type Point = tuple[x: int, y: int]
      type Point = (int, int)
    #+END_SRC
+
+   #+RESULTS:
    
    - can be anon
    #+BEGIN_SRC nim
@@ -811,7 +813,6 @@
 
    #+RESULTS:
    : x: 0 y: 0
-
 
 ** references and pointers
    - traced vs untraced (pointers)
@@ -858,5 +859,49 @@
    - top-level statements executed at the start (also when imported ?)
    - ~isMainModule~ can be used with ~when~ to run smth when file is executed
    - ~import~, ~from x import y~, ~import x except y~, ~from x as y import z~
+   #+BEGIN_SRC nim
+   #+END_SRC
+
+** oop
+   #+BEGIN_SRC nim
+     type Foo = object
+       x: int
+       y: string
+
+     # getters not needed for plain properties, but can have setters
+     proc `x=`(self: var Foo, value: int) {.inline.} =
+       self.x = value
+
+     # "self" is not a magic keyword and can be changed
+     proc `y=`(this: var Foo, value: string) {.inline.} =
+       this.y = value
+
+     # methods do not have a "hardcoded" connection to the objects
+     # and new methods can be added to an object dynamically, even
+     # in different modules
+     proc get_my_doubled_x(self: Foo): int =
+       self.x * 2
+
+     # constructor call
+     var foo1 = Foo(x: 42)
+
+     # if not specified in constructor call, fields will be initialized with
+     # default values
+     var foo2 = Foo()
+
+     # invoking method
+     echo foo1.get_my_doubled_x()
+
+     # invoking method, using UFCS
+     # https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax
+     echo get_my_doubled_x(foo2)
+
+     foo1.x = 100
+   #+END_SRC
+
+   #+RESULTS:
+   : 84
+   : 0
+
    #+BEGIN_SRC nim
    #+END_SRC
