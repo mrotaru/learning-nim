@@ -398,6 +398,38 @@
    : 000000000068F060"x"
    : Ⅶ
 
+   - format a string ? got "Error: undeclared identifier: '%'"
+   - ~%~ is defined in ~strutils~
+   - with ~strutils~ imported, got "Error: type mismatch: got <string, array[0..0, int]>"
+     - ~strformat~ makes no difference
+   - ~array~ vs ~openArray~ ? not the issue; it's that ~foo~ is ~int~ - and array needs to contain strings
+   #+BEGIN_SRC nim
+     import strutils
+     let foo = 42
+
+     #proc `%`(formatstr: string; a: openArray[string]): string
+     #  first type mismatch at position: 2
+     #  required type for a: openArray[string]
+     #  but expression '[foo]' is of type: array[0..0, int]
+     #echo "foo is $1" % [foo]
+
+     echo "foo is $1" % [$foo] # use toString operator ($)
+   #+END_SRC
+
+   #+RESULTS:
+   : foo is 42
+   
+   - also, very useful:
+   #+BEGIN_SRC nim
+     import strformat
+     let foo = 42
+     let bar = "100"
+     echo fmt"{foo = } and {bar=}"
+   #+END_SRC
+
+   #+RESULTS:
+   : foo = 42 and bar=100
+
 ** numbers - ints, floats
    - multiple types of integers built-in
    - ~int~ has same size as pointer - so 64 bits on 64-bit systems (?:)
@@ -882,6 +914,10 @@
      proc get_my_doubled_x(self: Foo): int =
        self.x * 2
 
+     # self.x cannot be assigned to ?!
+     proc double_my_x(self: Foo): void =
+       self.x = self.x * 2
+  
      # constructor call
      var foo1 = Foo(x: 42)
 
@@ -900,8 +936,31 @@
    #+END_SRC
 
    #+RESULTS:
-   : 84
-   : 0
 
+   #+BEGIN_SRC nim
+   #+END_SRC
+
+** exceptions
+   #+BEGIN_SRC nim
+     type MyException = object
+       msg: string
+
+     #raise Exception("foo") # Error: type mismatch: got <string> but expected 'Exception = object'
+     #raise Exception(MyException(msg: "foo")) # Error: type mismatch: got <MyException> but expected 'Exception = object'
+     #raise newException(MyException(msg: "foo")) # Error: type mismatch
+
+     #Warning: inherit from a more precise exception type like ValueError, IOError or OSError.
+     #  If these don't suit, inherit from CatchableError or Defect. [InheritFromException]
+     #type MyException2 = object of Exception
+     #raise newException(MyException2, "foo")
+
+     # no warnings; Defect represents a programming error
+     type MyException3 = object of Defect
+     raise newException(MyException3, "foo")
+   #+END_SRC
+
+   #+RESULTS:
+   
+** ...
    #+BEGIN_SRC nim
    #+END_SRC
