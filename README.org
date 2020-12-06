@@ -706,6 +706,24 @@
    : 1=2
    : 2=3
    
+   - adding items; below fails with *Error: unhandled exception: index out of bounds, the container is empty [IndexDefect]*
+   #+BEGIN_SRC nim
+     var x: seq[int] = @[]
+     x[0] = 42
+   #+END_SRC
+   
+   - to resolve, use ~insert~; more: https://nim-lang.org/docs/sequtils.html
+   - note that items are inserted at the head of the sequence; ~100~ will be the first item
+   #+BEGIN_SRC nim
+     var x: seq[int] = @[]
+     x.insert(42)
+     x.insert(100)
+     echo x
+   #+END_SRC
+
+   #+RESULTS:
+   : @[100, 42]
+   
 ** open arrays
    - only for params; cannot be nested
    - number of items can vary
@@ -724,6 +742,16 @@
    #+RESULTS:
    : 2
    : 1
+
+   - open array can't be member ?
+   - *Error: invalid type: 'openArray[int]' in this context: 'Foo' for var*
+   #+BEGIN_SRC nim
+     type Foo = ref object
+       bar: openArray[int]
+     var foo = Foo(bar: [1, 2, 3]) 
+   #+END_SRC
+
+   #+RESULTS:
 
 ** varargs
    - similar to an open array, but also similar to js "rest" param (...)
@@ -799,6 +827,10 @@
    : 100
    : (x: 100, y: 200)(x: 1000, y: 200)
    : (x: 200, y: 100)(x: 0, y: 100)
+   
+   - with ~ref~, objects go on heap
+   - the ~[]~ operator can be used to dereference, but it is optional and actually discouraged
+   - https://stackoverflow.com/questions/22096880/what-is-the-model-of-value-vs-reference-in-nim
 
 ** tuples
    - similar to objects, but indexed
@@ -961,6 +993,179 @@
 
    #+RESULTS:
    
+** a seq nested in a type
+   - wouldn't work (https://play.nim-lang.org/#ix=2Gsc); asked on Nim discord, friendly people, got reply (https://play.nim-lang.org/#ix=2Gsk)
+   - fixed:
+   #+BEGIN_SRC nim -n
+    type Foo[T] = ref object
+      items: seq[T]
+
+    proc newFoo[T]: Foo[T] =
+      new result
+
+    proc add[T](this: var Foo[T], item: T): void =
+      this.items.insert(item, 0)
+
+    var b1 = newFoo[int]()
+
+    b1.add(42)
+    echo b1.items
+   #+END_SRC
+
+   #+RESULTS:
+   : @[42]
+
+** generics, data structures: stack (w. seq)
+   - if ~items~ is an ~openArray~, below fails: *Error: invalid type: 'openArray[int]' in this context: 'Stack[system.int]' for var*
+     - because size is unknown, i guess ?
+   #+BEGIN_SRC nim
+     type Stack[T] = ref object
+       items: seq[T]
+
+     proc push[T](this: Stack, el: T): void =
+       this.items.insert(el)
+
+     # weird: if ~T~ is not specified for ~Stack~, it fails with:
+     # file.nim (l, c) template/generic instantiation of `pop` from here
+     # file.nim (l, c) Error: cannot instantiate: 'T'
+     proc pop[T](this: Stack[T]): T =
+       var el = this.items[this.items.len() - 1]
+       this.items.delete(this.items.len() - 1)
+       result = el
+
+     var stack = Stack[int](items: @[])
+     stack.push(1)
+     stack.push(2)
+     stack.push(3)
+     echo $stack.items
+     var popped = stack.pop()
+     echo $popped, $stack.items
+     popped = stack.pop()
+     echo $popped, $stack.items
+   #+END_SRC
+
+   #+RESULTS:
+   : @[3, 2, 1]
+   : 1@[3, 2]
+   : 2@[3]
+
+   - list data structures: https://nim-lang.org/docs/lists.html
+** generics, data structures: double-ended queue (WIP)
+   #+BEGIN_SRC nim
+     type Deque[T] = ref object
+       items: array[T]
+
+     proc push[T](this: Stack, el: T): void =
+       this.items.insert(el)
+
+     # weird: if ~T~ is not specified for ~Stack~, it fails with:
+     # file.nim (l, c) template/generic instantiation of `pop` from here
+     # file.nim (l, c) Error: cannot instantiate: 'T'
+     proc pop[T](this: Stack[T]): T =
+       var el = this.items[this.items.len() - 1]
+       this.items.delete(this.items.len() - 1)
+       result = el
+
+     var stack = Stack[int](items: @[])
+     stack.push(1)
+     stack.push(2)
+     stack.push(3)
+     echo $stack.items
+     var popped = stack.pop()
+     echo $popped, $stack.items
+     popped = stack.pop()
+     echo $popped, $stack.items
+   #+END_SRC
+
+   #+RESULTS:
+
+** generics, data structures: circular buffer
+   - store count/total nr of items inserted so far
+   - provide an index operator:
+     - buff[0] ⇒ most recent ("hottest") item
+     - buff[1] ⇒ the next hottest
+     - buff[n - 1] (last item) ⇒ last introduced ("coldest") item (n = buffer capacity)
+   - https://en.wikipedia.org/wiki/Circular_buffer
+   #+NAME: circular_buffer
+   #+BEGIN_SRC nim :tangle circular_buffer.nim
+     import strutils
+
+     type CircularBuffer[T] = ref object
+       items: seq[T]
+       capacity: int
+       count: int
+
+     proc newCircularBuffer[T](capacity: int): CircularBuffer[T] =
+       new result
+       result.capacity = capacity
+       result.items = newSeq[T](result.capacity)
+
+     proc insert[T](this: var CircularBuffer[T], item: T): void =
+       this.items[this.count mod this.capacity] = item
+       echo "inserted $# at $#; items: $#" % [$item, $(this.count mod this.capacity), $this.items]
+       this.count += 1
+
+     proc `[]`[T](this: var CircularBuffer[T], index: int): T =
+       let latest_real_index = (this.count - 1) mod this.capacity
+       let real_index = latest_real_index - index
+       if real_index < 0:
+         return this.items[this.capacity + real_index]
+       else:
+         return this.items[real_index]
+   #+END_SRC
+
+   #+NAME: circular_buffer_tests
+   #+BEGIN_SRC nim :noweb yes :tangle circular_buffer.nim
+     <<circular_buffer>>
+
+     var buff = newCircularBuffer[char](3)
+     echo buff.items
+     buff.insert('a')
+     assert(buff[0] == 'a')
+     #assert(buff[1]) # throws
+     #assert(buff[2]) # throws
+     buff.insert('b')
+     assert(buff[0] == 'b')
+     assert(buff[1] == 'a')
+     #assert(buff[2] == 'a') # throws
+     buff.insert('c')
+     assert(buff[0] == 'c')
+     assert(buff[1] == 'b')
+     assert(buff[2] == 'a')
+     buff.insert('d')
+     assert(buff[0] == 'd')
+     assert(buff[1] == 'c')
+     assert(buff[2] == 'b')
+     buff.insert('e')
+     assert(buff[0] == 'e')
+     assert(buff[1] == 'd')
+     assert(buff[2] == 'c')
+     echo buff.items
+   #+END_SRC
+
+   #+RESULTS: circular_buffer_tests
+   : @['\x00', '\x00', '\x00']
+   : inserted a at 0; items: @['a', '\x00', '\x00']
+   : inserted b at 1; items: @['a', 'b', '\x00']
+   : inserted c at 2; items: @['a', 'b', 'c']
+   : inserted d at 0; items: @['d', 'b', 'c']
+   : inserted e at 1; items: @['d', 'e', 'c']
+   : @['d', 'e', 'c']
+
+   #+RESULTS:
+
+   #+RESULTS: circular-buffer
+   : @['\x00', '\x00', '\x00']
+   : inserted a at 0; items: @['a', '\x00', '\x00']
+   : inserted b at 1; items: @['a', 'b', '\x00']
+   : inserted c at 2; items: @['a', 'b', 'c']
+   : inserted d at 0; items: @['d', 'b', 'c']
+   : inserted e at 1; items: @['d', 'e', 'c']
+   : @['d', 'e', 'c']
+
+   #+RESULTS: circular-buffer-1
+
 ** ...
    #+BEGIN_SRC nim
    #+END_SRC
+   
